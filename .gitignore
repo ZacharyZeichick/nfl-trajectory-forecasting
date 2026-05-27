@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.DS_Store
+.ipynb_checkpoints/
+
+# Large data files
+train/
+test.csv
+test_input.csv
+outputs/ml_dataset_w01_w05.csv
+outputs/ml_dataset_w01_w18.csv

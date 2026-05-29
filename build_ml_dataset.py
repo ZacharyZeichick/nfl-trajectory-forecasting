@@ -8,7 +8,8 @@ OUTPUT_DIR = ROOT / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 KEEP_LAST = ["x", "y", "s", "a", "dir", "o", "ball_land_x", "ball_land_y", "num_frames_output",
-             "player_role", "player_side", "player_position"]
+             "player_role", "player_side", "player_position",
+             "play_direction", "absolute_yardline_number"]
 
 GROUP_KEYS = ["game_id", "play_id", "nfl_id"]
 
@@ -32,7 +33,10 @@ for week in range(1, 19):
     inp_sorted["delta_y_last_1"]    = grp["y"].diff(1)
     inp_sorted["delta_x_last_3"]    = grp["x"].diff(3)
     inp_sorted["delta_y_last_3"]    = grp["y"].diff(3)
+    inp_sorted["delta_x_last_5"]    = grp["x"].diff(5)
+    inp_sorted["delta_y_last_5"]    = grp["y"].diff(5)
     inp_sorted["speed_change_last_3"]       = grp["s"].diff(3)
+    inp_sorted["speed_change_last_5"]       = grp["s"].diff(5)
     inp_sorted["acceleration_change_last_3"] = grp["a"].diff(3)
     # Circular diffs for angular columns
     inp_sorted["direction_change_last_3"]   = circ_diff(
@@ -47,9 +51,29 @@ for week in range(1, 19):
     MOTION_COLS = [
         "delta_x_last_1", "delta_y_last_1",
         "delta_x_last_3", "delta_y_last_3",
-        "speed_change_last_3", "direction_change_last_3",
+        "delta_x_last_5", "delta_y_last_5",
+        "speed_change_last_3", "speed_change_last_5", "direction_change_last_3",
         "acceleration_change_last_3", "orientation_change_last_3",
     ]
+
+    # --- Route-level features from full input sequence ---
+    inp_sorted["_step_dist"] = np.sqrt(
+        grp["x"].diff().fillna(0)**2 + grp["y"].diff().fillna(0)**2
+    )
+    route_stats = (
+        inp_sorted.groupby(GROUP_KEYS, sort=False)
+        .agg(route_dist_traveled=("_step_dist", "sum"),
+             mean_speed_input=("s", "mean"))
+        .reset_index()
+    )
+    inp_sorted = inp_sorted.drop(columns=["_step_dist"])
+
+    first_obs = (
+        inp_sorted.groupby(GROUP_KEYS, sort=False)[["x", "y"]]
+        .first()
+        .reset_index()
+        .rename(columns={"x": "first_x", "y": "first_y"})
+    )
 
     last_obs = (
         inp_sorted.sort_values("frame_id")
@@ -58,6 +82,17 @@ for week in range(1, 19):
         .reset_index()
         .rename(columns={"x": "last_x", "y": "last_y", "s": "last_s", "a": "last_a",
                          "dir": "last_dir", "o": "last_o"})
+    )
+
+    # --- Merge route-level features into last_obs ---
+    last_obs = (
+        last_obs
+        .merge(first_obs,    on=GROUP_KEYS, how="left")
+        .merge(route_stats,  on=GROUP_KEYS, how="left")
+    )
+    last_obs["route_dir"] = np.arctan2(
+        last_obs["last_y"] - last_obs["first_y"],
+        last_obs["last_x"] - last_obs["first_x"],
     )
 
     # --- Targeted receiver interaction features (no self-pair exclusion needed) ---
@@ -146,11 +181,14 @@ out_cols = [
     "player_role", "player_side", "player_position",
     "delta_x_last_1", "delta_y_last_1",
     "delta_x_last_3", "delta_y_last_3",
-    "speed_change_last_3", "direction_change_last_3",
+    "delta_x_last_5", "delta_y_last_5",
+    "speed_change_last_3", "speed_change_last_5", "direction_change_last_3",
     "acceleration_change_last_3", "orientation_change_last_3",
+    "first_x", "first_y", "route_dist_traveled", "mean_speed_input", "route_dir",
     "dist_to_targeted_receiver", "dx_to_targeted_receiver", "dy_to_targeted_receiver",
     "dist_to_nearest_opponent", "dx_to_nearest_opponent", "dy_to_nearest_opponent",
     "dist_to_nearest_teammate", "dx_to_nearest_teammate", "dy_to_nearest_teammate",
+    "play_direction", "absolute_yardline_number",
     "residual_x", "residual_y"
 ]
 

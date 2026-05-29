@@ -17,7 +17,11 @@ NUM_COLS = ["frame_id", "t", "last_x", "last_y", "last_s", "last_a", "last_dir",
             "velocity_pred_x", "velocity_pred_y", "vx", "vy",
             "distance_to_ball_x", "distance_to_ball_y",
             "angle_to_ball", "time_remaining",
-            "is_targeted_receiver", "is_defensive_coverage", "is_offense", "is_defense"]
+            "is_targeted_receiver", "is_defensive_coverage", "is_offense", "is_defense",
+            "delta_x_last_1", "delta_y_last_1",
+            "delta_x_last_3", "delta_y_last_3",
+            "speed_change_last_3", "direction_change_last_3",
+            "acceleration_change_last_3", "orientation_change_last_3"]
 CAT_COLS = ["player_role", "player_side", "player_position"]
 TARGETS  = ["residual_x", "residual_y"]
 

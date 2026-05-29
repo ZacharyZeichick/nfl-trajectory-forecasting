@@ -1,0 +1,31 @@
+Loading raw input data and building trajectory sequences...
+  Loaded week 6
+  Loaded week 12
+  Loaded week 18
+  Total trajectories: 173150
+Loading ML dataset...
+Building datasets...
+  Train trajectories: 30616 | Val trajectories: 15429
+
+Model parameters: 56,898
+Training for 40 epochs...
+
+Epoch  Train Loss   Val RMSE
+--------------------------------
+    1     15.7400     0.9533
+    5      9.3852     0.8102
+   10      7.6689     0.7382
+   15      6.9083     0.7453
+   20      6.4600     0.7186
+   25      5.9049     0.7072
+   30      5.5139     0.7015
+   35      5.3120     0.6937
+   40      5.2709     0.6924
+
+Best val RMSE: 0.6921
+LightGBM RMSE for comparison: 0.7406
+Delta vs LightGBM: -0.0485  (better)
+
+Baseline RMSE (weeks 13-18): 1.3438
+Sequence model RMSE        : 0.6921
+Improvement over baseline  : 48.50%

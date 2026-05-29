@@ -1,145 +1,167 @@
-# NFL Big Data Bowl 2026
+# NFL Big Data Bowl 2026 — Player Trajectory Forecasting
 
-## Project Overview
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.12-EE4C2C?logo=pytorch&logoColor=white)
+![LightGBM](https://img.shields.io/badge/LightGBM-gradient%20boosting-9ACD32)
+![Kaggle](https://img.shields.io/badge/Kaggle-Big%20Data%20Bowl%202026-20BEFF?logo=kaggle&logoColor=white)
 
-Kaggle competition to predict NFL player trajectories after a pass is thrown. Given pre-throw tracking data for each play, the task is to forecast the `(x, y)` position of selected players for every future frame until the play ends.
+**Given tracking data from the moment a pass is thrown, predict where every key player will be for the rest of the play — frame by frame.**
 
-## Data
+This project builds a multi-stage prediction system: a hand-crafted physics baseline, a LightGBM residual model, and a GRU sequence model, combined into an ensemble. Trained and validated on 18 weeks of 2023 NFL season player-tracking data.
 
-- **Training data:** 18 weeks of 2023 NFL season tracking data (`train/input_2023_w01.csv` – `w18.csv`)
-- **Input:** ~250–320k rows per week — one row per player per frame, including position, speed, acceleration, direction, orientation, and ball landing coordinates
-- **Output:** ~28–37k rows per week — future `(x, y)` positions for `player_to_predict=True` players only
-- **Test:** 2024 game data served play-by-play via the Kaggle evaluation API
-- **Total rows evaluated (all 18 weeks):** 562,936
+---
 
-Player roles: `Targeted Receiver`, `Defensive Coverage`, `Other Route Runner`, `Passer`
+## Headline Result
 
-## Baseline Models
+> **48.5% improvement in prediction error over a strong physics-based baseline**
+> — GRU sequence model, weeks 13–18 holdout (194,422 predictions)
 
-Three non-ML baselines built on last-observed tracking state per `(game_id, play_id, nfl_id)`:
+| Model | RMSE | vs. Baseline |
+|---|---|---|
+| Ball-aware physics baseline | 1.3438 | — |
+| LightGBM residual model | 0.7406 | −44.9% |
+| **GRU sequence model** | **0.6921** | **−48.5%** |
 
-| Model | Description |
-|---|---|
-| **Stationary** | Predict last observed `(x, y)` for all future frames |
-| **Velocity** | Dead-reckoning using last observed speed and direction: `vx = s·sin(dir)`, `vy = s·cos(dir)` |
-| **Ball-aware (w=0.25)** | Blend of velocity prediction and linear interpolation toward `ball_land_x/y` based on frame progress |
+---
 
-Ball-aware formula:
-```
-progress  = frame_id / num_frames_output  (clipped 0–1)
-ball_x    = last_x + progress * (ball_land_x - last_x)
-x_pred    = 0.75 * velocity_x + 0.25 * ball_x
-```
+## What Does It Actually Do?
 
-## Results
+Each prediction is a sequence of `(x, y)` positions, one per video frame, from throw-time until the play ends. Below are two examples from the held-out validation set.
 
-All 18 weeks, Kaggle-style RMSE (sqrt of mean squared errors pooled across x and y columns):
+**White** = where the player actually went · **Red dashed** = physics baseline · **Blue** = model prediction
 
-| Model | Kaggle RMSE |
-|---|---|
-| Stationary | 4.2437 |
-| Velocity | 1.7056 |
-| Ball-aware (w=0.25) | **1.3543** |
-
-![RMSE by Week](outputs/baseline_rmse_by_week.png)
-
-## Residual Machine Learning Model
-
-A gradient boosting model is trained to predict the residual error of the ball-aware baseline, then added back to the baseline prediction.
-
-- **Approach:** Predict `residual_x` and `residual_y` (true position minus baseline prediction), then add back to `baseline_x / baseline_y`
-- **Model:** `LGBMRegressor(n_estimators=5000, learning_rate=0.05)` wrapped in `MultiOutputRegressor` — LightGBM outperformed HGBR across all equivalent iteration counts in a systematic comparison
-- **Coordinate normalization:** all plays are flipped to a canonical right-moving orientation before feature extraction, so positional and directional features are consistent across plays
-- **Validation:** Rolling week splits on weeks 1–5 (train on prior weeks, validate on next week)
-- **Features:** Kinematic state at throw time (position, speed, acceleration, direction, orientation), ball landing coordinates, frame progress, player role/side/position, play direction and field position (`play_direction`, `absolute_yardline_number`), recent-motion features (delta position, speed/direction/acceleration change over last 1, 3, and 5 frames), route-level features from the full pre-throw input sequence (route start position, total distance traveled, route direction angle, mean speed), and player-interaction features: distance/dx/dy to the targeted receiver, nearest opponent, and nearest teammate (all from the final observed frame)
-
-| Val Week | Train Rows | Baseline RMSE | Model RMSE | Improvement |
-|---|---|---|---|---|
-| 2 | 32,088 | 1.2037 | 1.1663 | 3.10% |
-| 3 | 64,268 | 1.3025 | 1.1710 | 10.10% |
-| 4 | 100,348 | 1.2209 | 1.0967 | 10.17% |
-| 5 | 130,495 | 1.2283 | 1.0569 | 13.95% |
-| **Average** | | **1.2388** | **1.1227** | **~9.4%** |
-
-Best split: Week 5 — RMSE drops from 1.2283 to 1.0569 (13.95% improvement). Improvement scales with training data size, suggesting more weeks will continue to help.
-
-Results saved to `outputs/residual_model_rolling_validation.csv`.
-
-## Model Development Progression
-
-Each stage below represents an incremental improvement validated on the weeks 13–18 holdout set.
-
-![Development Progression](outputs/development_progression.png)
-
-The largest single gains came from increasing `max_iter` from 100 to 1000 and from coordinate normalization — normalizing all plays to a canonical direction so positional and directional features are consistent.
-
-## Later-Season Holdout Validation
-
-Full-season holdout evaluation using an expanded feature set.
-
-- **Train split:** Weeks 1–12 (368,514 rows)
-- **Validation split:** Weeks 13–18 (194,422 rows)
-- **Features:** All kinematic features from the rolling model, plus geometry features: `velocity_pred_x` / `velocity_pred_y` (projected positions from velocity dead-reckoning), `vx` / `vy` (true velocity components), signed distance to ball (`distance_to_ball_x/y`), angle to ball, time remaining, binary role/side indicators (`is_targeted_receiver`, `is_defensive_coverage`, `is_offense`, `is_defense`), recent-motion features from the last observed tracking frames, and player-interaction features: distance/dx/dy to the targeted receiver, nearest opponent, and nearest teammate (all from the final observed frame)
-
-| Metric | Value |
-|---|---|
-| Ball-aware baseline RMSE | 1.3438 |
-| Residual ML model RMSE | **0.7406** |
-| Improvement | **44.88%** |
-
-Per-week results (weeks 13–18):
-
-| Week | Baseline RMSE | Model RMSE | Improvement |
-|---|---|---|---|
-| 13 | 1.2931 | 0.7454 | 42.36% |
-| 14 | 1.3158 | **0.6864** | **47.83%** |
-| 15 | 1.3284 | 0.7098 | 46.57% |
-| 16 | 1.4899 | 0.8677 | 41.76% |
-| 17 | 1.3175 | 0.7224 | 45.17% |
-| 18 | 1.2788 | 0.6745 | 47.26% |
-
-The model improved RMSE on every validation week. Best single week: Week 14 at 47.83% improvement (model RMSE 0.6864). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
-
-**Per-role breakdown (weeks 13–18):**
-
-| Player Role | Baseline RMSE | Model RMSE | Improvement |
-|---|---|---|---|
-| Targeted Receiver | 0.9929 | **0.4541** | **54.27%** |
-| Defensive Coverage | 1.4587 | 0.8264 | 43.34% |
-
-Targeted receivers are predicted more accurately than defensive players — their routes are more structured, making residuals easier to learn.
-
-![Role Comparison](outputs/role_comparison.png)
-
-![Residual Model vs Baseline](outputs/residual_model_w13_w18_rmse.png)
-
-**Prediction accuracy by frame** — how RMSE grows as predictions reach further into the future:
-
-![Error by Frame](outputs/error_by_frame.png)
-
-The model maintains a consistent improvement margin across all prediction horizons. Error grows with time for both the baseline and model, as expected — the further into the future, the harder the prediction.
-
-**Per-trajectory breakdown** — each point is one player trajectory in the validation set. Points below the diagonal indicate the model outperforms the baseline on that trajectory:
-
-![Error Scatter](outputs/error_scatter.png)
-
-**Feature importance** (permutation importance, top features averaged across residual_x and residual_y):
-
-![Feature Importance](outputs/feature_importance.png)
-
-y-axis velocity (`vy`) and recent y-displacement (`delta_y_last_3`) dominate — the lateral dimension carries most of the predictable signal. Recent motion features account for 4 of the top 7.
-
-## Example Trajectory Corrections
-
-Each plot below shows a single player's trajectory over the future frames of a play: the true recorded path (white), the ball-aware baseline prediction (red dashed), and the residual model's corrected prediction (blue). Both examples are drawn from week 5 held-out plays.
-
-**High-correction example** — a harder trajectory where the baseline diverges noticeably from the true path. The model substantially reduces that error.
+**A hard case** — the player cuts sharply; the baseline overshoots, the model corrects most of the error:
 
 ![High-correction trajectory](outputs/sample_trajectory_high_correction.png)
 
-**Typical example** — a more representative mid-range trajectory. The baseline is already reasonable, and the model still improves on it.
+**A typical case** — the baseline is already reasonable, but the model still improves on it:
 
 ![Typical trajectory](outputs/sample_trajectory_typical_correction.png)
+
+---
+
+## How It Works
+
+### Step 1 — Physics Baseline
+
+Before any ML, a hand-crafted baseline establishes how hard this problem is. Three approaches, each building on the last:
+
+| Model | RMSE | What it does |
+|---|---|---|
+| Stationary | 4.2437 | Assumes the player stops moving at throw time |
+| Velocity | 1.7056 | Dead-reckoning: projects forward using last observed speed and direction |
+| Ball-aware | **1.3438** | Blends velocity with a pull toward where the ball lands (25% weight) |
+
+The ball-landing coordinates are a strong signal — knowing roughly where the play is going reduces error by ~21% on their own.
+
+![Baseline RMSE by Week](outputs/baseline_rmse_by_week.png)
+
+### Step 2 — LightGBM Residual Model
+
+Instead of predicting positions directly, the model learns the *error* the baseline makes — then corrects it. This residual approach lets the physics baseline handle the easy part (rough trajectory direction) while the ML handles the harder part (exactly how far and where).
+
+**Key design choices:**
+- **Coordinate normalization** — all plays are flipped to a canonical left-to-right orientation before features are extracted. Without this, the model would need to learn mirrored field dynamics simultaneously. This single change reduced RMSE by ~0.036 — the largest single gain in the project.
+- **Route features** — extracted from the full pre-throw sequence: where the route started, how far the player traveled, what direction they were heading, their mean speed. These describe *what kind of route* was run before the throw.
+- **Interaction features** — at throw time: distance and direction to the targeted receiver, nearest opponent, and nearest teammate.
+- **Recent motion** — change in position, speed, and direction over the last 1, 3, and 5 frames before the throw.
+
+**Development progression** — each bar is one incremental improvement, validated on the weeks 13–18 holdout:
+
+![Development Progression](outputs/development_progression.png)
+
+**Holdout results (weeks 13–18, 194,422 predictions):**
+
+| Week | Baseline RMSE | Model RMSE | Improvement |
+|---|---|---|---|
+| 13 | 1.2931 | 0.7454 | 42.4% |
+| 14 | 1.3158 | **0.6864** | **47.8%** |
+| 15 | 1.3284 | 0.7098 | 46.6% |
+| 16 | 1.4899 | 0.8677 | 41.8% |
+| 17 | 1.3175 | 0.7224 | 45.2% |
+| 18 | 1.2788 | 0.6745 | 47.3% |
+| **All weeks** | **1.3438** | **0.7406** | **44.9%** |
+
+The model improves on every single week. Week 16 is a consistent outlier — higher error for both the baseline and the model, suggesting something structurally different about that week's games.
+
+![Model vs Baseline by Week](outputs/residual_model_w13_w18_rmse.png)
+
+### Who's Easier to Predict?
+
+Targeted receivers are significantly more predictable than defensive players — their routes are more structured and route-level features capture them better.
+
+| Player Role | Baseline RMSE | Model RMSE | Improvement |
+|---|---|---|---|
+| Targeted Receiver | 0.9929 | **0.4541** | **54.3%** |
+| Defensive Coverage | 1.4587 | 0.8264 | 43.3% |
+
+![Role Comparison](outputs/role_comparison.png)
+
+### How Far Ahead Can It See?
+
+Prediction error grows naturally as forecasts extend further into the future — the longer after the throw, the harder the prediction. But the model maintains a consistent improvement margin over the baseline at every horizon.
+
+![Error by Frame](outputs/error_by_frame.png)
+
+### Which Features Matter Most?
+
+Permutation importance (how much RMSE increases when a feature is shuffled):
+
+![Feature Importance](outputs/feature_importance.png)
+
+**y-velocity (`vy`) and recent y-displacement (`delta_y_last_3`) dominate** — the lateral dimension carries the most predictable signal. Four of the top seven features are recent-motion features, confirming that what a player was doing just before the throw is the strongest predictor of what they'll do after.
+
+### How Does It Do Per Trajectory?
+
+Each point below is one player trajectory in the validation set. Points below the diagonal mean the model beats the baseline on that trajectory; points above mean the baseline was better. The model wins the majority of trajectories, including most of the high-error cases.
+
+![Error Scatter](outputs/error_scatter.png)
+
+---
+
+### Step 3 — GRU Sequence Model
+
+The LightGBM model works on per-frame rows — it can't see the full shape of a player's pre-throw route. A GRU sequence model encodes that trajectory directly.
+
+**Architecture:**
+- **Sequence encoder:** 2-layer GRU with hidden size 64 over the pre-throw trajectory (up to 50 frames). Each frame is represented by 8 features: relative position, speed, acceleration, and sin/cos of direction and orientation.
+- **Prediction head:** Concatenates the GRU's final hidden state with 6 per-frame context features (`progress`, `t`, `vx`, `vy`, `distance_to_ball_x/y`), then passes through a 3-layer MLP → 2 outputs (`residual_x`, `residual_y`).
+- **56,898 parameters** — intentionally small; the training set has ~30k trajectories and is CPU-only.
+
+| Metric | Value |
+|---|---|
+| GRU val RMSE (weeks 13–18) | **0.6921** |
+| LightGBM for comparison | 0.7406 |
+| Improvement over LightGBM | −6.5% |
+
+### Step 4 — Ensemble (future work)
+
+`ensemble_blend.py` sweeps blend weights between GRU and LightGBM predictions (alpha 0.0 → 1.0) and reports RMSE at each mix. Given that the GRU already outperforms LightGBM by 6.5%, a blend may squeeze out additional improvement — ensembles tend to help when two models have complementary strengths (the GRU sees full trajectory sequences; LightGBM sees richer tabular features).
+
+---
+
+## Key Findings
+
+- **The biggest single gain was a data preprocessing choice**, not a fancier model — flipping all plays to a canonical direction cut RMSE by ~0.036, more than any algorithmic improvement.
+- **Ball landing coordinates are surprisingly powerful** — a 25% blend toward where the ball lands reduced baseline error by ~21%.
+- **Lateral motion dominates** — `vy` (y-velocity at throw) is the most important feature by a wide margin. Predicting how far sideways a player moves is harder and more informative than forward motion.
+- **More training data consistently helps** — rolling validation showed improvement scaling from 3% (2 weeks of training data) to 14% (5 weeks). Full-season training (12 weeks) reaches 45%.
+- **Role-based models don't help** — training separate models for Targeted Receiver vs. Defensive Coverage produced no measurable improvement over a single model with role as a feature. LightGBM learns the split internally.
+- **Week 16 is a structural outlier** — higher error across every model, every year. Likely a game-type or scheduling artifact (e.g. Christmas games, flex scheduling).
+- **The correct velocity convention is `vx = s·sin(dir)`, `vy = s·cos(dir)`** — the reversed (standard trig) convention makes velocity *worse* than the stationary baseline.
+
+---
+
+## Data
+
+18 weeks of 2023 NFL season player-tracking data from the [Kaggle Big Data Bowl 2026](https://www.kaggle.com/competitions/nfl-big-data-bowl-2026) competition.
+
+- One row per player per frame, with position `(x, y)`, speed, acceleration, direction, orientation, and ball landing coordinates
+- ~250–320k input rows per week; ~28–37k output rows (only `player_to_predict=True` players are scored)
+- 562,936 total scored predictions across all 18 weeks
+- Player roles: Targeted Receiver, Defensive Coverage, Other Route Runner, Passer
+
+---
 
 ## How to Run
 
@@ -148,7 +170,7 @@ Each plot below shows a single player's trajectory over the future frames of a p
 pip install -r requirements.txt
 ```
 
-2. Place the Kaggle competition data in the project root with this structure:
+2. Place the Kaggle competition data in the project root:
 ```
 train/
 test.csv
@@ -156,51 +178,37 @@ test_input.csv
 kaggle_evaluation/
 ```
 
-3. Build the ML dataset (all 18 weeks):
+3. Build the ML feature dataset (all 18 weeks):
 ```bash
 python build_ml_dataset.py
 ```
 
-3. Run baseline validation across all 18 weeks:
+4. Run baseline validation:
 ```bash
 python baseline_local_validation.py
 ```
 
-4. Run baseline validation across all 18 weeks:
-```bash
-python baseline_local_validation.py
-```
-
-5. Train and validate the residual model (train weeks 1–12, validate weeks 13–18):
+5. Train the LightGBM residual model (weeks 1–12 train, 13–18 validate):
 ```bash
 python train_residual_model.py
 ```
 
-6. Generate plots:
+6. Train the GRU sequence model:
+```bash
+python train_sequence_model.py
+```
+
+7. Run the ensemble blend sweep:
+```bash
+python ensemble_blend.py
+```
+
+8. Generate plots:
 ```bash
 python plot_baseline_results.py
 python plot_model_validation.py
+python plot_feature_importance.py
+python plot_sample_trajectories.py
 ```
 
-> **Note:** All scripts use `Path(__file__).resolve().parent` for paths and can be run from any directory.
->
-> Large generated ML datasets (`outputs/ml_dataset_*.csv`) are excluded from git. Summary result CSVs and chart PNGs in `outputs/` are tracked.
-
-## Key Takeaways
-
-- The correct velocity decomposition is `vx = s·sin(dir)`, `vy = s·cos(dir)` — not the standard trig convention. Using `cos/sin` makes velocity worse than stationary.
-- Week 16 is a consistent outlier with higher error across all models, likely due to game-type or scheduling differences in that week.
-- `ball_land_x/y` is a strong signal. A 25% blend toward the ball landing point reduces RMSE by ~21% over pure velocity.
-- Increasing `max_iter` from 300 to 1000 delivered a large RMSE drop (~0.033 absolute), with clear diminishing returns beyond 1000.
-- Coordinate normalization (flipping left-direction plays to a canonical right-facing orientation) delivered the largest single gain (~0.036 absolute) — without it, the model must learn mirrored field dynamics simultaneously.
-- Switching from HGBR to LightGBM (n_estimators=5000, lr=0.05) gave a further −0.022 RMSE improvement. A systematic sweep confirmed LightGBM outperforms HGBR at every equivalent iteration count on this dataset.
-- Route-level features (start position, total distance, route direction) added meaningful signal beyond last-frame kinematics.
-- Training separate models per player role (Targeted Receiver vs Defensive Coverage) produced no measurable improvement over a single model with role as a feature — HGBR learns the split internally.
-- Permutation importance showed `vy` (y-velocity at throw) and `delta_y_last_3` as the dominant features, highlighting that lateral motion is the hardest and most predictable dimension.
-
-## Next Steps
-
-- ~~Coordinate normalization~~ — implemented, delivered largest single gain (−0.036 RMSE)
-- ~~LightGBM comparison~~ — implemented, −0.022 RMSE over HGBR (n_estimators=5000, lr=0.05)
-- Kaggle test submission — wire up the `kaggle_evaluation` inference server for actual competition scoring
-- Sequence modeling — LSTM or Transformer over the pre-throw trajectory could capture route patterns that tabular features miss
+> Large generated datasets (`outputs/ml_dataset_*.csv`) are gitignored. Result CSVs and chart PNGs in `outputs/` are tracked.

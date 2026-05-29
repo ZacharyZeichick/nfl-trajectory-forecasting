@@ -93,6 +93,18 @@ The model improved RMSE on every validation week. Best single week: Week 14 at 4
 
 ![Residual Model vs Baseline](outputs/residual_model_w13_w18_rmse.png)
 
+## Example Trajectory Corrections
+
+Each plot below shows a single player's trajectory over the future frames of a play: the true recorded path (white), the ball-aware baseline prediction (red dashed), and the residual model's corrected prediction (blue). Both examples are drawn from week 5 held-out plays.
+
+**High-correction example** — a harder trajectory where the baseline diverges noticeably from the true path. The model substantially reduces that error.
+
+![High-correction trajectory](outputs/sample_trajectory_high_correction.png)
+
+**Typical example** — a more representative mid-range trajectory. The baseline is already reasonable, and the model still improves on it.
+
+![Typical trajectory](outputs/sample_trajectory_typical_correction.png)
+
 ## How to Run
 
 1. Install dependencies:

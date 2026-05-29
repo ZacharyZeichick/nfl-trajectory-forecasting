@@ -107,3 +107,11 @@ for role in sorted(val_reset["player_role"].unique()):
 
 pd.DataFrame(role_rows).to_csv(OUTPUT_DIR / "residual_model_by_role_validation.csv", index=False)
 print("\nSaved: outputs/residual_model_by_role_validation.csv")
+
+# Save full val predictions for downstream analysis
+preds_df = val_reset[["game_id", "play_id", "nfl_id", "frame_id", "week", "player_role",
+                       "baseline_x", "baseline_y", "residual_x", "residual_y"]].copy()
+preds_df["pred_residual_x"] = val_pred_x
+preds_df["pred_residual_y"] = val_pred_y
+preds_df.to_csv(OUTPUT_DIR / "val_predictions_w13_w18.csv", index=False)
+print("\nSaved: outputs/val_predictions_w13_w18.csv")

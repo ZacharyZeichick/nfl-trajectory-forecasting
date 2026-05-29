@@ -64,6 +64,14 @@ Best split: Week 5 — RMSE drops from 1.2283 to 1.0569 (13.95% improvement). Im
 
 Results saved to `outputs/residual_model_rolling_validation.csv`.
 
+## Model Development Progression
+
+Each stage below represents an incremental improvement validated on the weeks 13–18 holdout set.
+
+![Development Progression](outputs/development_progression.png)
+
+The largest single gain came from increasing `max_iter` from 100 to 1000 — HGBR continues learning well past the default of 100, with diminishing returns setting in around 1000.
+
 ## Later-Season Holdout Validation
 
 Full-season holdout evaluation using an expanded feature set.
@@ -100,7 +108,19 @@ The model improved RMSE on every validation week. Best single week: Week 14 at 4
 
 Targeted receivers are predicted more accurately than defensive players — their routes are more structured, making residuals easier to learn.
 
+![Role Comparison](outputs/role_comparison.png)
+
 ![Residual Model vs Baseline](outputs/residual_model_w13_w18_rmse.png)
+
+**Prediction accuracy by frame** — how RMSE grows as predictions reach further into the future:
+
+![Error by Frame](outputs/error_by_frame.png)
+
+The model maintains a consistent improvement margin across all prediction horizons. Error grows with time for both the baseline and model, as expected — the further into the future, the harder the prediction.
+
+**Per-trajectory breakdown** — each point is one player trajectory in the validation set. Points below the diagonal indicate the model outperforms the baseline on that trajectory:
+
+![Error Scatter](outputs/error_scatter.png)
 
 **Feature importance** (permutation importance, top features averaged across residual_x and residual_y):
 

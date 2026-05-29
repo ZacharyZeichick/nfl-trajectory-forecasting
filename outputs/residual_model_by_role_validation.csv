@@ -1,3 +1,3 @@
 player_role,rows,baseline_rmse,model_rmse,improvement_pct
-Defensive Coverage,139597,1.4587,0.8863,39.24
-Targeted Receiver,54825,0.9929,0.5114,48.49
+Defensive Coverage,139597,1.4587,0.8492,41.78
+Targeted Receiver,54825,0.9929,0.475,52.16

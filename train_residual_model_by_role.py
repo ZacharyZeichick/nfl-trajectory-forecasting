@@ -28,7 +28,7 @@ NUM_COLS = ["frame_id", "t", "last_x", "last_y", "last_s", "last_a", "last_dir",
             "dist_to_nearest_opponent", "dx_to_nearest_opponent", "dy_to_nearest_opponent",
             "dist_to_nearest_teammate", "dx_to_nearest_teammate", "dy_to_nearest_teammate",
             "absolute_yardline_number"]
-CAT_COLS = ["player_side", "player_position", "play_direction"]
+CAT_COLS = ["player_side", "player_position"]
 TARGETS  = ["residual_x", "residual_y"]
 ROLES    = ["Targeted Receiver", "Defensive Coverage"]
 

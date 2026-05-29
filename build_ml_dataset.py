@@ -24,6 +24,25 @@ for week in range(1, 19):
     inp = pd.read_csv(TRAIN_DIR / f"input_2023_w{w}.csv")
     out = pd.read_csv(TRAIN_DIR / f"output_2023_w{w}.csv")
 
+    # Normalize all plays to right-moving convention (offense attacks +x end zone).
+    # For left-direction plays: flip x-coordinates and mirror directional angles.
+    play_dirs = (inp[["game_id", "play_id", "play_direction"]]
+                 .drop_duplicates(["game_id", "play_id"]))
+    out = out.merge(play_dirs, on=["game_id", "play_id"], how="left")
+
+    left_inp = inp["play_direction"] == "left"
+    left_out = out["play_direction"] == "left"
+
+    inp = inp.copy()
+    inp.loc[left_inp, "x"]           = 120 - inp.loc[left_inp, "x"]
+    inp.loc[left_inp, "ball_land_x"] = 120 - inp.loc[left_inp, "ball_land_x"]
+    inp.loc[left_inp, "dir"]         = (360 - inp.loc[left_inp, "dir"]) % 360
+    inp.loc[left_inp, "o"]           = (360 - inp.loc[left_inp, "o"]) % 360
+
+    out = out.copy()
+    out.loc[left_out, "x"] = 120 - out.loc[left_out, "x"]
+    out = out.drop(columns=["play_direction"])
+
     inp_sorted = inp.sort_values(GROUP_KEYS + ["frame_id"])
 
     # Compute lag differences within each player/play group

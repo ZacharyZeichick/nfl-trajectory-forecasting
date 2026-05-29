@@ -45,10 +45,11 @@ stages = [
     ("+ Route &\nfield features",     0.8314),
     ("max_iter\n=1000",               0.7986),
     ("+ Coordinate\nnormalization",   0.7625),
+    ("LightGBM\nn_est=5000",          0.7406),
 ]
 labels = [s[0] for s in stages]
 values = [s[1] for s in stages]
-colors = [ORANGE] + [BLUE] * 5 + [GREEN]
+colors = [ORANGE] + [BLUE] * 5 + [GREEN] * 2
 
 fig, ax = plt.subplots(figsize=(10, 5))
 fig.patch.set_facecolor(BG)

@@ -48,7 +48,7 @@ All 18 weeks, Kaggle-style RMSE (sqrt of mean squared errors pooled across x and
 A gradient boosting model is trained to predict the residual error of the ball-aware baseline, then added back to the baseline prediction.
 
 - **Approach:** Predict `residual_x` and `residual_y` (true position minus baseline prediction), then add back to `baseline_x / baseline_y`
-- **Model:** `HistGradientBoostingRegressor(max_iter=1000)` wrapped in `MultiOutputRegressor`, tuned via systematic holdout comparison
+- **Model:** `LGBMRegressor(n_estimators=5000, learning_rate=0.05)` wrapped in `MultiOutputRegressor` — LightGBM outperformed HGBR across all equivalent iteration counts in a systematic comparison
 - **Coordinate normalization:** all plays are flipped to a canonical right-moving orientation before feature extraction, so positional and directional features are consistent across plays
 - **Validation:** Rolling week splits on weeks 1–5 (train on prior weeks, validate on next week)
 - **Features:** Kinematic state at throw time (position, speed, acceleration, direction, orientation), ball landing coordinates, frame progress, player role/side/position, play direction and field position (`play_direction`, `absolute_yardline_number`), recent-motion features (delta position, speed/direction/acceleration change over last 1, 3, and 5 frames), route-level features from the full pre-throw input sequence (route start position, total distance traveled, route direction angle, mean speed), and player-interaction features: distance/dx/dy to the targeted receiver, nearest opponent, and nearest teammate (all from the final observed frame)
@@ -84,28 +84,28 @@ Full-season holdout evaluation using an expanded feature set.
 | Metric | Value |
 |---|---|
 | Ball-aware baseline RMSE | 1.3438 |
-| Residual ML model RMSE | **0.7625** |
-| Improvement | **43.25%** |
+| Residual ML model RMSE | **0.7406** |
+| Improvement | **44.88%** |
 
 Per-week results (weeks 13–18):
 
 | Week | Baseline RMSE | Model RMSE | Improvement |
 |---|---|---|---|
-| 13 | 1.2931 | 0.7707 | 40.40% |
-| 14 | 1.3158 | **0.7129** | **45.82%** |
-| 15 | 1.3284 | 0.7274 | 45.24% |
-| 16 | 1.4899 | 0.8840 | 40.67% |
-| 17 | 1.3175 | 0.7420 | 43.68% |
-| 18 | 1.2788 | 0.7044 | 44.92% |
+| 13 | 1.2931 | 0.7454 | 42.36% |
+| 14 | 1.3158 | **0.6864** | **47.83%** |
+| 15 | 1.3284 | 0.7098 | 46.57% |
+| 16 | 1.4899 | 0.8677 | 41.76% |
+| 17 | 1.3175 | 0.7224 | 45.17% |
+| 18 | 1.2788 | 0.6745 | 47.26% |
 
-The model improved RMSE on every validation week. Best single week: Week 14 at 45.82% improvement (model RMSE 0.7129). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
+The model improved RMSE on every validation week. Best single week: Week 14 at 47.83% improvement (model RMSE 0.6864). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
 
 **Per-role breakdown (weeks 13–18):**
 
 | Player Role | Baseline RMSE | Model RMSE | Improvement |
 |---|---|---|---|
-| Targeted Receiver | 0.9929 | **0.4750** | **52.16%** |
-| Defensive Coverage | 1.4587 | 0.8492 | 41.78% |
+| Targeted Receiver | 0.9929 | **0.4541** | **54.27%** |
+| Defensive Coverage | 1.4587 | 0.8264 | 43.34% |
 
 Targeted receivers are predicted more accurately than defensive players — their routes are more structured, making residuals easier to learn.
 
@@ -193,6 +193,7 @@ python plot_model_validation.py
 - `ball_land_x/y` is a strong signal. A 25% blend toward the ball landing point reduces RMSE by ~21% over pure velocity.
 - Increasing `max_iter` from 300 to 1000 delivered a large RMSE drop (~0.033 absolute), with clear diminishing returns beyond 1000.
 - Coordinate normalization (flipping left-direction plays to a canonical right-facing orientation) delivered the largest single gain (~0.036 absolute) — without it, the model must learn mirrored field dynamics simultaneously.
+- Switching from HGBR to LightGBM (n_estimators=5000, lr=0.05) gave a further −0.022 RMSE improvement. A systematic sweep confirmed LightGBM outperforms HGBR at every equivalent iteration count on this dataset.
 - Route-level features (start position, total distance, route direction) added meaningful signal beyond last-frame kinematics.
 - Training separate models per player role (Targeted Receiver vs Defensive Coverage) produced no measurable improvement over a single model with role as a feature — HGBR learns the split internally.
 - Permutation importance showed `vy` (y-velocity at throw) and `delta_y_last_3` as the dominant features, highlighting that lateral motion is the hardest and most predictable dimension.
@@ -200,6 +201,6 @@ python plot_model_validation.py
 ## Next Steps
 
 - ~~Coordinate normalization~~ — implemented, delivered largest single gain (−0.036 RMSE)
-- LightGBM comparison — generally faster and sometimes marginally better than HGBR on tabular data
+- ~~LightGBM comparison~~ — implemented, −0.022 RMSE over HGBR (n_estimators=5000, lr=0.05)
 - Kaggle test submission — wire up the `kaggle_evaluation` inference server for actual competition scoring
 - Sequence modeling — LSTM or Transformer over the pre-throw trajectory could capture route patterns that tabular features miss

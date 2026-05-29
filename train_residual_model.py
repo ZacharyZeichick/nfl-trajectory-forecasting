@@ -1,11 +1,13 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import warnings
+warnings.filterwarnings("ignore", message="X does not have valid feature names", category=UserWarning)
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.multioutput import MultiOutputRegressor
-from sklearn.ensemble import HistGradientBoostingRegressor
+from lightgbm import LGBMRegressor
 
 ROOT       = Path(__file__).resolve().parent
 OUTPUT_DIR = ROOT / "outputs"
@@ -48,7 +50,7 @@ pre = ColumnTransformer([
 ])
 pipe = Pipeline([
     ("pre", pre),
-    ("model", MultiOutputRegressor(HistGradientBoostingRegressor(max_iter=1000, random_state=42), n_jobs=-1))
+    ("model", MultiOutputRegressor(LGBMRegressor(n_estimators=5000, learning_rate=0.05, random_state=42, verbose=-1), n_jobs=-1))
 ])
 
 pipe.fit(train[NUM_COLS + CAT_COLS], train[TARGETS])

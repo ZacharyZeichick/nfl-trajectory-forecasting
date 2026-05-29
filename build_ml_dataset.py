@@ -60,6 +60,52 @@ for week in range(1, 19):
                          "dir": "last_dir", "o": "last_o"})
     )
 
+    # --- Targeted receiver interaction features (no self-pair exclusion needed) ---
+    tr_snap = (
+        last_obs[last_obs["player_role"] == "Targeted Receiver"]
+        [["game_id", "play_id", "last_x", "last_y"]]
+        .drop_duplicates(subset=["game_id", "play_id"])
+        .rename(columns={"last_x": "tr_x", "last_y": "tr_y"})
+    )
+    last_obs = last_obs.merge(tr_snap, on=["game_id", "play_id"], how="left")
+    last_obs["dx_to_targeted_receiver"]   = last_obs["tr_x"] - last_obs["last_x"]
+    last_obs["dy_to_targeted_receiver"]   = last_obs["tr_y"] - last_obs["last_y"]
+    last_obs["dist_to_targeted_receiver"] = np.sqrt(
+        last_obs["dx_to_targeted_receiver"]**2 + last_obs["dy_to_targeted_receiver"]**2
+    )
+    last_obs = last_obs.drop(columns=["tr_x", "tr_y"])
+
+    # --- Nearest opponent / nearest teammate (self-pairs excluded) ---
+    snap = last_obs[["game_id", "play_id", "nfl_id", "last_x", "last_y", "player_side"]].copy()
+    pairs = snap.merge(snap, on=["game_id", "play_id"], suffixes=("", "_other"))
+    pairs = pairs[pairs["nfl_id"] != pairs["nfl_id_other"]].copy()
+    pairs["_dx"]   = pairs["last_x_other"] - pairs["last_x"]
+    pairs["_dy"]   = pairs["last_y_other"] - pairs["last_y"]
+    pairs["_dist"] = np.sqrt(pairs["_dx"]**2 + pairs["_dy"]**2)
+
+    key = ["game_id", "play_id", "nfl_id"]
+    opp_pairs  = pairs[pairs["player_side_other"] != pairs["player_side"]]
+    team_pairs = pairs[pairs["player_side_other"] == pairs["player_side"]]
+
+    nearest_opp = (
+        opp_pairs.loc[opp_pairs.groupby(key)["_dist"].idxmin(), key + ["_dx", "_dy", "_dist"]]
+        .rename(columns={"_dx": "dx_to_nearest_opponent",
+                         "_dy": "dy_to_nearest_opponent",
+                         "_dist": "dist_to_nearest_opponent"})
+    )
+    nearest_team = (
+        team_pairs.loc[team_pairs.groupby(key)["_dist"].idxmin(), key + ["_dx", "_dy", "_dist"]]
+        .rename(columns={"_dx": "dx_to_nearest_teammate",
+                         "_dy": "dy_to_nearest_teammate",
+                         "_dist": "dist_to_nearest_teammate"})
+    )
+
+    last_obs = (
+        last_obs
+        .merge(nearest_opp,  on=key, how="left")
+        .merge(nearest_team, on=key, how="left")
+    )
+
     df = out.merge(last_obs, on=["game_id", "play_id", "nfl_id"], how="inner")
     df["week"] = week
 
@@ -102,6 +148,9 @@ out_cols = [
     "delta_x_last_3", "delta_y_last_3",
     "speed_change_last_3", "direction_change_last_3",
     "acceleration_change_last_3", "orientation_change_last_3",
+    "dist_to_targeted_receiver", "dx_to_targeted_receiver", "dy_to_targeted_receiver",
+    "dist_to_nearest_opponent", "dx_to_nearest_opponent", "dy_to_nearest_opponent",
+    "dist_to_nearest_teammate", "dx_to_nearest_teammate", "dy_to_nearest_teammate",
     "residual_x", "residual_y"
 ]
 

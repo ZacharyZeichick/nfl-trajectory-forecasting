@@ -21,7 +21,10 @@ NUM_COLS = ["frame_id", "t", "last_x", "last_y", "last_s", "last_a", "last_dir",
             "delta_x_last_1", "delta_y_last_1",
             "delta_x_last_3", "delta_y_last_3",
             "speed_change_last_3", "direction_change_last_3",
-            "acceleration_change_last_3", "orientation_change_last_3"]
+            "acceleration_change_last_3", "orientation_change_last_3",
+            "dist_to_targeted_receiver", "dx_to_targeted_receiver", "dy_to_targeted_receiver",
+            "dist_to_nearest_opponent", "dx_to_nearest_opponent", "dy_to_nearest_opponent",
+            "dist_to_nearest_teammate", "dx_to_nearest_teammate", "dy_to_nearest_teammate"]
 CAT_COLS = ["player_role", "player_side", "player_position"]
 TARGETS  = ["residual_x", "residual_y"]
 

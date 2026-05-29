@@ -48,9 +48,9 @@ All 18 weeks, Kaggle-style RMSE (sqrt of mean squared errors pooled across x and
 A gradient boosting model is trained to predict the residual error of the ball-aware baseline, then added back to the baseline prediction.
 
 - **Approach:** Predict `residual_x` and `residual_y` (true position minus baseline prediction), then add back to `baseline_x / baseline_y`
-- **Model:** `HistGradientBoostingRegressor(max_iter=300)` wrapped in `MultiOutputRegressor`, tuned via holdout comparison
+- **Model:** `HistGradientBoostingRegressor(max_iter=1000)` wrapped in `MultiOutputRegressor`, tuned via systematic holdout comparison
 - **Validation:** Rolling week splits on weeks 1–5 (train on prior weeks, validate on next week)
-- **Features:** Kinematic state at throw time (position, speed, acceleration, direction, orientation), ball landing coordinates, frame progress, player role/side/position, plus recent-motion features derived from the last observed tracking frames (delta position, speed change, direction change, acceleration change, orientation change over last 1 and 3 frames)
+- **Features:** Kinematic state at throw time (position, speed, acceleration, direction, orientation), ball landing coordinates, frame progress, player role/side/position, play direction and field position (`play_direction`, `absolute_yardline_number`), recent-motion features (delta position, speed/direction/acceleration change over last 1, 3, and 5 frames), route-level features from the full pre-throw input sequence (route start position, total distance traveled, route direction angle, mean speed), and player-interaction features: distance/dx/dy to the targeted receiver, nearest opponent, and nearest teammate (all from the final observed frame)
 
 | Val Week | Train Rows | Baseline RMSE | Model RMSE | Improvement |
 |---|---|---|---|---|
@@ -75,23 +75,38 @@ Full-season holdout evaluation using an expanded feature set.
 | Metric | Value |
 |---|---|
 | Ball-aware baseline RMSE | 1.3438 |
-| Residual ML model RMSE | **0.8325** |
-| Improvement | **38.05%** |
+| Residual ML model RMSE | **0.7986** |
+| Improvement | **40.57%** |
 
 Per-week results (weeks 13–18):
 
 | Week | Baseline RMSE | Model RMSE | Improvement |
 |---|---|---|---|
-| 13 | 1.2931 | 0.8115 | 37.25% |
-| 14 | 1.3158 | **0.7832** | **40.48%** |
-| 15 | 1.3284 | 0.7983 | 39.90% |
-| 16 | 1.4899 | 0.9748 | 34.57% |
-| 17 | 1.3175 | 0.8170 | 37.99% |
-| 18 | 1.2788 | 0.7678 | 39.96% |
+| 13 | 1.2931 | 0.7759 | 39.99% |
+| 14 | 1.3158 | **0.7368** | **44.01%** |
+| 15 | 1.3284 | 0.7561 | 43.08% |
+| 16 | 1.4899 | 0.9593 | 35.61% |
+| 17 | 1.3175 | 0.7795 | 40.83% |
+| 18 | 1.2788 | 0.7331 | 42.67% |
 
-The model improved RMSE on every validation week. Best single week: Week 14 at 40.48% improvement (model RMSE 0.7832). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
+The model improved RMSE on every validation week. Best single week: Week 14 at 44.01% improvement (model RMSE 0.7368). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
+
+**Per-role breakdown (weeks 13–18):**
+
+| Player Role | Baseline RMSE | Model RMSE | Improvement |
+|---|---|---|---|
+| Targeted Receiver | 0.9929 | **0.5114** | **48.49%** |
+| Defensive Coverage | 1.4587 | 0.8863 | 39.24% |
+
+Targeted receivers are predicted more accurately than defensive players — their routes are more structured, making residuals easier to learn.
 
 ![Residual Model vs Baseline](outputs/residual_model_w13_w18_rmse.png)
+
+**Feature importance** (permutation importance, top features averaged across residual_x and residual_y):
+
+![Feature Importance](outputs/feature_importance.png)
+
+y-axis velocity (`vy`) and recent y-displacement (`delta_y_last_3`) dominate — the lateral dimension carries most of the predictable signal. Recent motion features account for 4 of the top 7.
 
 ## Example Trajectory Corrections
 
@@ -153,13 +168,16 @@ python plot_model_validation.py
 ## Key Takeaways
 
 - The correct velocity decomposition is `vx = s·sin(dir)`, `vy = s·cos(dir)` — not the standard trig convention. Using `cos/sin` makes velocity worse than stationary.
-- Week 1 and Week 16 are consistent outliers with higher velocity error, likely due to game-type or tracking differences.
+- Week 16 is a consistent outlier with higher error across all models, likely due to game-type or scheduling differences in that week.
 - `ball_land_x/y` is a strong signal. A 25% blend toward the ball landing point reduces RMSE by ~21% over pure velocity.
-- Ball weight grid search (0.00–0.50) confirmed 0.25 as the overall optimum across all 18 weeks.
+- Increasing `max_iter` from 300 to 1000 delivered the single largest RMSE drop in the ML phase (~0.033 absolute), with clear diminishing returns beyond 1000.
+- Route-level features (start position, total distance, route direction) added meaningful signal beyond last-frame kinematics.
+- Training separate models per player role (Targeted Receiver vs Defensive Coverage) produced no measurable improvement over a single model with role as a feature — HGBR learns the split internally.
+- Permutation importance showed `vy` (y-velocity at throw) and `delta_y_last_3` as the dominant features, highlighting that lateral motion is the hardest and most predictable dimension.
 
 ## Next Steps
 
-- Revisit role-specific ball weights with cross-validation, since early tests suggested possible overfitting.
-- Feature engineering: relative position to ball, player separation, route direction
-- ML model (gradient boosting or sequence model) trained on engineered features
-- Cross-validation across weeks to avoid overfitting on week-specific patterns
+- Coordinate normalization by play direction — normalizing so all plays are in the same direction should improve consistency of positional features
+- LightGBM comparison — generally faster and sometimes marginally better than HGBR on tabular data
+- Kaggle test submission — wire up the `kaggle_evaluation` inference server for actual competition scoring
+- Sequence modeling — LSTM or Transformer over the pre-throw trajectory could capture route patterns that tabular features miss

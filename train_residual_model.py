@@ -42,7 +42,7 @@ pre = ColumnTransformer([
 ])
 pipe = Pipeline([
     ("pre", pre),
-    ("model", MultiOutputRegressor(HistGradientBoostingRegressor(random_state=42), n_jobs=-1))
+    ("model", MultiOutputRegressor(HistGradientBoostingRegressor(max_iter=300, random_state=42), n_jobs=-1))
 ])
 
 pipe.fit(train[NUM_COLS + CAT_COLS], train[TARGETS])

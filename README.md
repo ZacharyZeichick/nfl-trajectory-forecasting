@@ -48,9 +48,9 @@ All 18 weeks, Kaggle-style RMSE (sqrt of mean squared errors pooled across x and
 A gradient boosting model is trained to predict the residual error of the ball-aware baseline, then added back to the baseline prediction.
 
 - **Approach:** Predict `residual_x` and `residual_y` (true position minus baseline prediction), then add back to `baseline_x / baseline_y`
-- **Model:** `HistGradientBoostingRegressor` wrapped in `MultiOutputRegressor`
+- **Model:** `HistGradientBoostingRegressor(max_iter=300)` wrapped in `MultiOutputRegressor`, tuned via holdout comparison
 - **Validation:** Rolling week splits on weeks 1–5 (train on prior weeks, validate on next week)
-- **Features:** Kinematic state at throw time (position, speed, acceleration, direction, orientation), ball landing coordinates, frame progress, player role/side/position
+- **Features:** Kinematic state at throw time (position, speed, acceleration, direction, orientation), ball landing coordinates, frame progress, player role/side/position, plus recent-motion features derived from the last observed tracking frames (delta position, speed change, direction change, acceleration change, orientation change over last 1 and 3 frames)
 
 | Val Week | Train Rows | Baseline RMSE | Model RMSE | Improvement |
 |---|---|---|---|---|
@@ -70,26 +70,26 @@ Full-season holdout evaluation using an expanded feature set.
 
 - **Train split:** Weeks 1–12 (368,514 rows)
 - **Validation split:** Weeks 13–18 (194,422 rows)
-- **Features:** All kinematic features from the rolling model, plus geometry features: `velocity_pred_x` / `velocity_pred_y` (projected positions from velocity dead-reckoning), `vx` / `vy` (true velocity components), signed distance to ball (`distance_to_ball_x/y`), angle to ball, time remaining, and binary role/side indicators (`is_targeted_receiver`, `is_defensive_coverage`, `is_offense`, `is_defense`)
+- **Features:** All kinematic features from the rolling model, plus geometry features: `velocity_pred_x` / `velocity_pred_y` (projected positions from velocity dead-reckoning), `vx` / `vy` (true velocity components), signed distance to ball (`distance_to_ball_x/y`), angle to ball, time remaining, binary role/side indicators (`is_targeted_receiver`, `is_defensive_coverage`, `is_offense`, `is_defense`), and recent-motion features from the last observed tracking frames
 
 | Metric | Value |
 |---|---|
 | Ball-aware baseline RMSE | 1.3438 |
-| Residual ML model RMSE | **1.0836** |
-| Improvement | **19.36%** |
+| Residual ML model RMSE | **0.8447** |
+| Improvement | **37.14%** |
 
 Per-week results (weeks 13–18):
 
 | Week | Baseline RMSE | Model RMSE | Improvement |
 |---|---|---|---|
-| 13 | 1.2931 | 1.0558 | 18.35% |
-| 14 | 1.3158 | 1.0426 | 20.76% |
-| 15 | 1.3284 | 1.0543 | 20.63% |
-| 16 | 1.4899 | 1.2232 | 17.90% |
-| 17 | 1.3175 | 1.1030 | 16.28% |
-| 18 | 1.2788 | **0.9776** | **23.55%** |
+| 13 | 1.2931 | 0.8386 | 35.15% |
+| 14 | 1.3158 | 0.8010 | 39.12% |
+| 15 | 1.3284 | 0.8171 | 38.49% |
+| 16 | 1.4899 | 0.9704 | 34.87% |
+| 17 | 1.3175 | 0.8267 | 37.25% |
+| 18 | 1.2788 | **0.7793** | **39.06%** |
 
-The model improved RMSE on every validation week. Best single week: Week 18 at 23.55% improvement (model RMSE 0.9776). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
+The model improved RMSE on every validation week. Best single week: Week 18 at 39.06% improvement (model RMSE 0.7793). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
 
 ![Residual Model vs Baseline](outputs/residual_model_w13_w18_rmse.png)
 

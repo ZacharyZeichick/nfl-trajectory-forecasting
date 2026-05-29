@@ -70,26 +70,26 @@ Full-season holdout evaluation using an expanded feature set.
 
 - **Train split:** Weeks 1–12 (368,514 rows)
 - **Validation split:** Weeks 13–18 (194,422 rows)
-- **Features:** All kinematic features from the rolling model, plus geometry features: `velocity_pred_x` / `velocity_pred_y` (projected positions from velocity dead-reckoning), `vx` / `vy` (true velocity components), signed distance to ball (`distance_to_ball_x/y`), angle to ball, time remaining, binary role/side indicators (`is_targeted_receiver`, `is_defensive_coverage`, `is_offense`, `is_defense`), and recent-motion features from the last observed tracking frames
+- **Features:** All kinematic features from the rolling model, plus geometry features: `velocity_pred_x` / `velocity_pred_y` (projected positions from velocity dead-reckoning), `vx` / `vy` (true velocity components), signed distance to ball (`distance_to_ball_x/y`), angle to ball, time remaining, binary role/side indicators (`is_targeted_receiver`, `is_defensive_coverage`, `is_offense`, `is_defense`), recent-motion features from the last observed tracking frames, and player-interaction features: distance/dx/dy to the targeted receiver, nearest opponent, and nearest teammate (all from the final observed frame)
 
 | Metric | Value |
 |---|---|
 | Ball-aware baseline RMSE | 1.3438 |
-| Residual ML model RMSE | **0.8447** |
-| Improvement | **37.14%** |
+| Residual ML model RMSE | **0.8325** |
+| Improvement | **38.05%** |
 
 Per-week results (weeks 13–18):
 
 | Week | Baseline RMSE | Model RMSE | Improvement |
 |---|---|---|---|
-| 13 | 1.2931 | 0.8386 | 35.15% |
-| 14 | 1.3158 | 0.8010 | 39.12% |
-| 15 | 1.3284 | 0.8171 | 38.49% |
-| 16 | 1.4899 | 0.9704 | 34.87% |
-| 17 | 1.3175 | 0.8267 | 37.25% |
-| 18 | 1.2788 | **0.7793** | **39.06%** |
+| 13 | 1.2931 | 0.8115 | 37.25% |
+| 14 | 1.3158 | **0.7832** | **40.48%** |
+| 15 | 1.3284 | 0.7983 | 39.90% |
+| 16 | 1.4899 | 0.9748 | 34.57% |
+| 17 | 1.3175 | 0.8170 | 37.99% |
+| 18 | 1.2788 | 0.7678 | 39.96% |
 
-The model improved RMSE on every validation week. Best single week: Week 18 at 39.06% improvement (model RMSE 0.7793). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
+The model improved RMSE on every validation week. Best single week: Week 14 at 40.48% improvement (model RMSE 0.7832). Results saved to `outputs/residual_model_w13_w18_validation.csv`.
 
 ![Residual Model vs Baseline](outputs/residual_model_w13_w18_rmse.png)
 
